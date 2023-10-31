@@ -1,0 +1,441 @@
+---
+title: "waywiser"
+subtitle: "An ergonomic toolbox for assessing spatial models"
+author:
+  - name: "**Michael J Mahoney**"
+    orcid: 0000-0003-2402-304X
+    email: mjmahone@esf.edu
+    url: https://mm218.dev
+format: 
+  revealjs: 
+    standalone: true
+    center: true
+    slide-number: false
+    overview: true
+    width: 1280
+    height: 720
+    theme: [default, custom.scss]
+    footer: "Talk for EHA -- November 2023"
+---
+
+
+## About Me
+
+```{r}
+#| include: false
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+```
+
+
+::: columns
+::: {.column width="50%"}
+-   Mike Mahoney
+
+-   PhD candidate in environmental science
+
+-   Research assistant, CAFRI
+
+-   Past: Posit (formerly RStudio), Permian Global
+
+-   These slides: [mm218.dev/ehanov2023](https://mm218.dev/ehanov2023)
+:::
+
+::: {.column width="10%"}
+:::
+
+::: {.column width="40%"}
+![](me.jpeg)
+:::
+:::
+
+---
+
+![](yardstick.png){.quarto-figure-center}
+
+---
+
+```{r}
+#| echo: true
+sim_data <- modeldata::sim_regression(1000)
+sim_formula <- reformulate(
+  grep("predictor", names(sim_data), value = TRUE), 
+  "outcome"
+)
+sim_model <- lm(sim_formula, sim_data)
+sim_data$predictions <- predict(sim_model, sim_data)
+head(sim_data)
+```
+
+---
+
+```{r}
+#| echo: true
+yardstick::rmse(sim_data, truth = outcome, estimate = predictions)
+```
+
+---
+
+```{r}
+#| echo: true
+yardstick::rmse(sim_data, truth = outcome, estimate = predictions)
+yardstick::mae(sim_data, truth = outcome, estimate = predictions)
+```
+
+---
+
+```{r}
+#| echo: true
+yardstick::rmse(sim_data, truth = outcome, estimate = predictions)
+yardstick::mae(sim_data, truth = outcome, estimate = predictions)
+yardstick::huber_loss_pseudo(sim_data, truth = outcome, estimate = predictions)
+```
+
+---
+
+```{r}
+#| echo: true
+metrics <- yardstick::metric_set(
+  yardstick::rmse, yardstick::mae, yardstick::huber_loss_pseudo
+)
+metrics(sim_data, truth = outcome, estimate = predictions)
+```
+
+---
+
+![](modeling-process.svg){.quarto-figure-center}
+
+---
+
+![](modeling-process-highlight.svg){.quarto-figure-center}
+
+---
+
+![](tidymodels.png){.quarto-figure-center}
+
+---
+
+```{r}
+#| echo: true
+suppressPackageStartupMessages(library(tidymodels))
+
+cv_folds <- vfold_cv(sim_data)
+
+lm_spec <- linear_reg()
+lm_workflow <- workflow() |> 
+  add_model(lm_spec) |> 
+  add_formula(sim_formula)
+
+lm_workflow |> 
+  fit_resamples(cv_folds, metrics = metrics) |> 
+  collect_metrics()
+```
+
+---
+
+![](waywiser_new.png){.quarto-figure-center}
+
+---
+
+![](agreement_coef.jpg){.quarto-figure-center}
+
+---
+
+```{r}
+#| echo: true
+waywiser::ww_agreement_coefficient(
+  sim_data, truth = outcome, estimate = predictions
+)
+```
+
+---
+
+```{r}
+#| echo: true
+waywiser::ww_agreement_coefficient(
+  sim_data, truth = outcome, estimate = predictions
+)
+waywiser::ww_willmott_dr(
+  sim_data, truth = outcome, estimate = predictions
+)
+```
+
+---
+
+```{r}
+#| echo: true
+metrics <- yardstick::metric_set(
+  waywiser::ww_agreement_coefficient, waywiser::ww_willmott_dr
+)
+metrics(sim_data, truth = outcome, estimate = predictions)
+```
+
+
+---
+
+```{r}
+#| echo: true
+metrics <- yardstick::metric_set(
+  yardstick::rmse, yardstick::mae, yardstick::huber_loss_pseudo,
+  waywiser::ww_agreement_coefficient, waywiser::ww_willmott_dr
+)
+metrics(sim_data, truth = outcome, estimate = predictions)
+```
+
+---
+
+```{r}
+#| echo: true
+lm_workflow |> 
+  fit_resamples(cv_folds, metrics = metrics) |> 
+  collect_metrics()
+```
+
+---
+
+```{r}
+#| echo: true
+data(guerry, package = "waywiser")
+guerry |> 
+  sf::st_geometry() |> 
+  plot()
+```
+
+---
+
+```{r}
+#| echo: true
+guerry_lm <- lm(Crm_prs ~ Litercy, guerry)
+guerry$preds <- predict(guerry_lm, guerry)
+metrics(guerry, Crm_prs, preds)
+```
+
+---
+
+```{r}
+#| echo: true
+#| message: false
+#| warning: false
+waywiser::ww_global_moran_i(guerry, Crm_prs, preds)
+waywiser::ww_global_geary_c(guerry, Crm_prs, preds)
+```
+
+---
+
+```{r}
+#| echo: true
+autocorr_metrics <- yardstick::metric_set(
+  waywiser::ww_global_moran_i, waywiser::ww_global_geary_c
+)
+autocorr_metrics(guerry, Crm_prs, preds)
+```
+
+---
+
+```{r}
+#| echo: true
+plot(sf::st_geometry(guerry))
+
+waywiser::ww_build_neighbors(guerry) |> 
+  plot(sf::st_geometry(guerry), add = TRUE)
+```
+
+---
+
+```{r}
+#| echo: true
+waywiser::ww_build_weights(guerry)
+```
+
+---
+
+```{r}
+#| echo: true
+waywiser::ww_local_moran_i(guerry, Crm_prs, preds) |> 
+  head()
+```
+
+
+---
+
+```{r}
+#| echo: true
+waywiser::ww_local_moran_i(guerry, Crm_prs, preds)[".estimate"] |> 
+  cbind(sf::st_geometry(guerry)) |> 
+  sf::st_as_sf() |> 
+  plot()
+```
+
+---
+
+![](grids.png){.quarto-figure-center}
+
+---
+
+```{r}
+#| echo: true
+#| warning: false
+data(worldclim_simulation, package = "waywiser")
+worldclim_formula <- response ~ bio2 + bio10 + bio13 + bio19
+worldclim_lm <- lm(worldclim_formula, worldclim_simulation)
+worldclim_simulation$prediction <- predict(worldclim_lm, worldclim_simulation)
+worldclim_simulation["response"] |> 
+  plot()
+```
+
+---
+
+```{r}
+#| echo: true
+multi_scale <- waywiser::ww_multi_scale(
+  worldclim_simulation, 
+  truth = response, 
+  estimate = prediction,
+  n = 20
+)
+multi_scale
+```
+
+---
+
+```{r}
+#| echo: true
+multi_scale$.grid[[1]][".truth"] |> 
+  plot()
+```
+
+---
+
+```{r}
+#| echo: true
+#| warning: false
+waywiser::ww_multi_scale(
+  worldclim_simulation, 
+  truth = response, 
+  estimate = prediction,
+  n = 20,
+  square = FALSE
+)$.grid[[1]][".truth"] |> 
+  plot()
+```
+
+
+---
+
+```{r}
+#| echo: true
+multi_scale <- waywiser::ww_multi_scale(
+  worldclim_simulation, 
+  truth = response, 
+  estimate = prediction,
+  n = c(20, 10, 5, 2)
+)
+multi_scale
+```
+
+---
+
+```{r}
+#| echo: true
+suppressPackageStartupMessages(library(ggplot2))
+multi_scale |> 
+  tidyr::unnest(.grid_args) |> 
+  ggplot(aes(x = n, y = .estimate, color = .metric)) +
+  geom_line() + 
+  scale_x_reverse()
+```
+
+---
+
+```{r}
+#| code-line-numbers: "3"
+#| echo: true
+waywiser::ww_multi_scale(worldclim_simulation,  truth = response,  
+                         estimate = prediction, n = c(20, 10, 5, 2), 
+                         metrics = waywiser::ww_willmott_dr) |> 
+  tidyr::unnest(.grid_args) |> 
+  ggplot(aes(x = n, y = .estimate, color = .metric)) +
+  geom_line() + 
+  scale_x_reverse()
+```
+
+---
+
+![](27-Figure2.2-1.png){.quarto-figure-center}
+
+---
+
+```{r}
+#| echo: true
+worldclim_split <- rsample::initial_split(worldclim_simulation)
+worldclim_lm <- lm(
+  worldclim_formula, 
+  rsample::training(worldclim_split)
+)
+variable_importance <- vip::vi_model(worldclim_lm)
+variable_importance
+```
+
+---
+
+```{r}
+#| echo: true
+aoa <- waywiser::ww_area_of_applicability(
+  worldclim_formula,
+  rsample::training(worldclim_split),
+  rsample::testing(worldclim_split),
+  variable_importance
+)
+aoa
+```
+
+---
+
+```{r}
+#| echo: true
+test_set_aoa <- predict(aoa, rsample::testing(worldclim_split))
+test_set_aoa |> 
+  head()
+```
+
+
+---
+
+```{r}
+#| echo: true
+test_set_aoa[["di"]] |> 
+  hist()
+```
+
+
+---
+
+```{r}
+#| echo: true
+#| warning: false
+cbind(rsample::testing(worldclim_split), test_set_aoa)["aoa"] |> 
+  plot()
+```
+
+## Future Roadmap
+
+- Function interfaces are generally stable
+
+- Interested in adding metrics, protocols
+
+- Potential in moving computations to Rust
+
+---
+
+#### Find me online:
+
+{{< fa globe >}} [mm218.dev](https://mm218.dev) 
+
+{{< fa brands github >}} @mikemahoney218 
+
+<i class="fab fa-mastodon"></i> [@MikeMahoney218@fosstodon.org](https://fosstodon.org/@MikeMahoney218)
+
+<i class="fa-solid fa-square"></i> [@mikemahoney218.com](https://bsky.app/profile/mikemahoney218.com)
+
+<br />
+
+Slides available at [https://mm218.dev/ehanov2023](https://mm218.dev/ehanov2023)
