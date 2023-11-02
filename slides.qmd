@@ -269,6 +269,22 @@ waywiser::ww_local_moran_i(guerry, Crm_prs, preds)[".estimate"] |>
 
 ---
 
+![](nys_agb.png){.quarto-figure-center}
+
+---
+
+![](agb_pixels.png){.quarto-figure-center}
+
+---
+
+![](tax_pixels.png){.quarto-figure-center}
+
+---
+
+![](dec_pixels.png){.quarto-figure-center}
+
+---
+
 ![](grids.png){.quarto-figure-center}
 
 ---
